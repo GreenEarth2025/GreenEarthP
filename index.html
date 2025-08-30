@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Simple Canberra Bill Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { font-family: Arial, sans-serif; background:#0b0f14; color:#e6edf3; margin:0; padding:20px; }
+h1 { margin-top:0; }
+table { width:100%; border-collapse: collapse; margin-top:10px; }
+th, td { border:1px solid #444; padding:8px; text-align:left; }
+th { background:#121823; }
+tr:nth-child(even) { background:#1c2533; }
+button { padding:6px 10px; margin:4px; cursor:pointer; }
+input, select { padding:4px; }
+</style>
+</head>
+<body>
+
+<h1>Canberra Family Bill Tracker</h1>
+<button onclick="addRow()">➕ Add Bill</button>
+<button onclick="exportData()">⬇️ Export</button>
+<button onclick="importData()">⬆️ Import</button>
+
+<table id="billTable">
+<thead>
+<tr>
+  <th>Quarter</th>
+  <th>Bill</th>
+  <th>Category</th>
+  <th>Amount (AUD)</th>
+  <th>Due Date</th>
+  <th>Required?</th>
+  <th>Paid?</th>
+  <th>Actions</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+const STORAGE_KEY = 'simple-bills';
+let bills = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+
+if (!bills.length) {
+  bills = [
+    {q:'Q1', name:'Rent', cat:'Housing', amt:2300, due:'2025-07-01', req:true, paid:false},
+    {q:'Q1', name:'Electricity', cat:'Utilities', amt:210.5, due:'2025-07-25', req:true, paid:false},
+    {q:'Q2', name:'Gas', cat:'Utilities', amt:140, due:'2025-10-18', req:true, paid:false},
+    {q:'Q3', name:'Water', cat:'Utilities', amt:95.3, due:'2026-02-05', req:true, paid:false},
+    {q:'Q4', name:'Internet', cat:'Connectivity', amt:79, due:'2026-05-10', req:true, paid:false}
+  ];
+  save();
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
+}
+
+function render() {
+  const tbody = document.querySelector('#billTable tbody');
+  tbody.innerHTML = '';
+  bills.forEach((b, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td contenteditable oninput="update(${i}, 'q', this.innerText)">${b.q}</td>
+      <td contenteditable oninput="update(${i}, 'name', this.innerText)">${b.name}</td>
+      <td contenteditable oninput="update(${i}, 'cat', this.innerText)">${b.cat}</td>
+      <td contenteditable oninput="update(${i}, 'amt', parseFloat(this.innerText)||0)">${b.amt}</td>
+      <td><input type="date" value="${b.due}" onchange="update(${i}, 'due', this.value)"></td>
+      <td><input type="checkbox" ${b.req?'checked':''} onchange="update(${i}, 'req', this.checked)"></td>
+      <td><input type="checkbox" ${b.paid?'checked':''} onchange="update(${i}, 'paid', this.checked)"></td>
+      <td><button onclick="delRow(${i})">🗑️</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function update(index, field, value) {
+  bills[index][field] = value;
+  save();
+}
+
+function addRow() {
+  bills.push({q:'Q1', name:'New Bill', cat:'Other', amt:0, due:new Date().toISOString().slice(0,10), req:false, paid:false});
+  save();
+  render();
+}
+
+function delRow(index) {
+  if (confirm('Delete this bill?')) {
+    bills.splice(index, 1);
+    save();
+    render();
+  }
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(bills, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bills.json';
+  a.click();
+}
+
+function importData() {
+  const json = prompt('Paste JSON here:');
+  if (!json) return;
+  try {
+    const arr = JSON.parse(json);
+    if (Array.isArray(arr)) {
+      bills = arr;
+      save();
+      render();
+    } else {
+      alert('Invalid format');
+    }
+  } catch(e) {
+    alert('Invalid JSON');
+  }
+}
+
+render();
+</script>
+
+</body>
+</html>
