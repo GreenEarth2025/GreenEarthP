@@ -161,3 +161,75 @@ function addRow(){
 
 // Delete row
 function
+  function delRow(i){
+  if(confirm('Delete this bill?')){
+    bills.splice(i,1);
+    saveToCloud();
+    render();
+  }
+}
+
+function attachFile(i,file){
+  if(file){
+    bills[i].attach = file.name;
+    saveToCloud();
+    alert('Attached: ' + file.name);
+  }
+}
+
+function exportData(){
+  const blob = new Blob([JSON.stringify(bills,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bills.json';
+  a.click();
+}
+
+function exportText(){
+  let text = 'Quarter\tBill\tCategory\tAmount\tDue Date\tRequired\tPaid\tPaid Date\tPaid By\tAttachment\n';
+  bills.forEach(b=>{
+    text += `${b.q}\t${b.name}\t${b.cat}\t${b.amt}\t${b.due}\t${b.req}\t${b.paid}\t${b.paidDate}\t${b.paidBy}\t${b.attach}\n`;
+  });
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bills.txt';
+  a.click();
+}
+
+function exportWord(){
+  let html = '<html><body><table border="1"><tr><th>Quarter</th><th>Bill</th><th>Category</th><th>Amount</th><th>Due Date</th><th>Required</th><th>Paid</th><th>Paid Date</th><th>Paid By</th><th>Attachment</th></tr>';
+  bills.forEach(b=>{
+    html += `<tr><td>${b.q}</td><td>${b.name}</td><td>${b.cat}</td><td>${b.amt}</td><td>${b.due}</td><td>${b.req}</td><td>${b.paid}</td><td>${b.paidDate}</td><td>${b.paidBy}</td><td>${b.attach}</td></tr>`;
+  });
+  html += '</table></body></html>';
+  const blob = new Blob([html], {type:'application/msword'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bills.doc';
+  a.click();
+}
+
+function importData(){
+  const json = prompt('Paste JSON here:');
+  if (!json) return;
+  try {
+    const arr = JSON.parse(json);
+    if (Array.isArray(arr)) {
+      bills = arr;
+      saveToCloud();
+      render();
+    } else {
+      alert('Invalid format');
+    }
+  } catch(e) {
+    alert('Invalid JSON');
+  }
+}
+
+// Load data when page opens
+loadFromCloud();
+</script>
+</body>
+</html>
+
