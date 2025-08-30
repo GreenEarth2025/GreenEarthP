@@ -2,22 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Simple PMOPURICanberra Bill Tracker</title>
+<title>Canberra MOPURIFamily Bill Tracker</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body { font-family: Arial, sans-serif; background:#0b0f14; color:#e6edf3; margin:0; padding:20px; }
 h1 { margin-top:0; }
 table { width:100%; border-collapse: collapse; margin-top:10px; }
-th, td { border:1px solid #444; padding:8px; text-align:left; }
+th, td { border:1px solid #444; padding:6px; text-align:left; }
 th { background:#121823; }
 tr:nth-child(even) { background:#1c2533; }
 button { padding:6px 10px; margin:4px; cursor:pointer; }
 input, select { padding:4px; }
+canvas { background:#121823; margin-top:20px; padding:10px; border-radius:8px; }
 </style>
 </head>
 <body>
 
 <h1>Canberra Family Bill Tracker</h1>
+<div>
+  <label>Quarter:
+    <select id="quarterSelect" onchange="render();drawChart();">
+      <option value="ALL">All</option>
+      <option value="Q1">Q1</option>
+      <option value="Q2">Q2</option>
+      <option value="Q3">Q3</option>
+      <option value="Q4">Q4</option>
+    </select>
+  </label>
+</div>
 <button onclick="addRow()">➕ Add Bill</button>
 <button onclick="exportData()">⬇️ Export JSON</button>
 <button onclick="exportText()">⬇️ Export TXT</button>
@@ -30,135 +42,84 @@ input, select { padding:4px; }
   <th>Quarter</th>
   <th>Bill</th>
   <th>Category</th>
-  <th>Amount (AUD)</th>
+  <th>Amount</th>
   <th>Due Date</th>
   <th>Required?</th>
   <th>Paid?</th>
+  <th>Paid Date</th>
+  <th>Paid By</th>
+  <th>Attachment</th>
   <th>Actions</th>
 </tr>
 </thead>
 <tbody></tbody>
 </table>
 
+<canvas id="paidChart" width="400" height="200"></canvas>
+
 <script>
-const STORAGE_KEY = 'simple-bills';
+const STORAGE_KEY = 'bills-v5';
 let bills = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 
 if (!bills.length) {
   bills = [
-    {q:'Q1', name:'Rent', cat:'Housing', amt:2300, due:'2025-07-01', req:true, paid:false},
-    {q:'Q1', name:'Electricity', cat:'Utilities', amt:210.5, due:'2025-07-25', req:true, paid:false},
-    {q:'Q1', name:'Water', cat:'Utilities', amt:95.3, due:'2025-08-05', req:true, paid:false},
-    {q:'Q1', name:'Internet', cat:'Connectivity', amt:79, due:'2025-07-10', req:true, paid:false},
-    {q:'Q1', name:'Mobile Plan', cat:'Connectivity', amt:45, due:'2025-08-15', req:true, paid:false},
-    {q:'Q2', name:'Gas', cat:'Utilities', amt:140, due:'2025-10-18', req:true, paid:false},
-    {q:'Q2', name:'Council Rates', cat:'Housing', amt:550, due:'2025-11-15', req:true, paid:false},
-    {q:'Q2', name:'Home Insurance', cat:'Insurance', amt:980, due:'2025-12-20', req:true, paid:false},
-    {q:'Q2', name:'Spotify', cat:'Subscriptions', amt:18.99, due:'2025-11-05', req:false, paid:false},
-    {q:'Q3', name:'Car Insurance', cat:'Insurance', amt:780, due:'2026-02-14', req:true, paid:false},
-    {q:'Q3', name:'Childcare Fees', cat:'Family', amt:420, due:'2026-02-07', req:true, paid:false},
-    {q:'Q3', name:'Gym Membership', cat:'Health', amt:35, due:'2026-01-15', req:false, paid:false},
-    {q:'Q4', name:'Strata', cat:'Housing', amt:760, due:'2026-05-20', req:true, paid:false},
-    {q:'Q4', name:'Health Insurance', cat:'Insurance', amt:265, due:'2026-06-02', req:true, paid:false},
-    {q:'Q4', name:'Amazon Prime', cat:'Subscriptions', amt:9.99, due:'2026-06-15', req:false, paid:false}
+    {q:'Q1', name:'Rent', cat:'Housing', amt:2300, due:'2025-07-01', req:true, paid:true, paidDate:'2025-07-01', paidBy:'Prakash', attach:''},
+    {q:'Q1', name:'Electricity', cat:'Utilities', amt:210.5, due:'2025-07-25', req:true, paid:false, paidDate:'', paidBy:'', attach:''},
+    {q:'Q2', name:'Gas', cat:'Utilities', amt:140, due:'2025-10-18', req:true, paid:true, paidDate:'2025-10-18', paidBy:'Partner', attach:''},
+    {q:'Q3', name:'Water', cat:'Utilities', amt:95.3, due:'2026-02-05', req:true, paid:false, paidDate:'', paidBy:'', attach:''},
+    {q:'Q4', name:'Internet', cat:'Connectivity', amt:79, due:'2026-05-10', req:true, paid:false, paidDate:'', paidBy:'', attach:''}
   ];
   save();
 }
 
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
-}
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(bills)); }
 
-function render() {
+function render(){
+  const qFilter = document.getElementById('quarterSelect').value;
   const tbody = document.querySelector('#billTable tbody');
   tbody.innerHTML = '';
-  bills.forEach((b, i) => {
+  bills.forEach((b,i)=>{
+    if(qFilter!=='ALL' && b.q!==qFilter) return;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td contenteditable oninput="update(${i}, 'q', this.innerText)">${b.q}</td>
-      <td contenteditable oninput="update(${i}, 'name', this.innerText)">${b.name}</td>
-      <td contenteditable oninput="update(${i}, 'cat', this.innerText)">${b.cat}</td>
-      <td contenteditable oninput="update(${i}, 'amt', parseFloat(this.innerText)||0)">${b.amt}</td>
-      <td><input type="date" value="${b.due}" onchange="update(${i}, 'due', this.value)"></td>
-      <td><input type="checkbox" ${b.req?'checked':''} onchange="update(${i}, 'req', this.checked)"></td>
-      <td><input type="checkbox" ${b.paid?'checked':''} onchange="update(${i}, 'paid', this.checked)"></td>
+      <td contenteditable oninput="update(${i},'q',this.innerText)">${b.q}</td>
+      <td contenteditable oninput="update(${i},'name',this.innerText)">${b.name}</td>
+      <td contenteditable oninput="update(${i},'cat',this.innerText)">${b.cat}</td>
+      <td contenteditable oninput="update(${i},'amt',parseFloat(this.innerText)||0)">${b.amt}</td>
+      <td><input type="date" value="${b.due}" onchange="update(${i},'due',this.value)"></td>
+      <td><input type="checkbox" ${b.req?'checked':''} onchange="update(${i},'req',this.checked)"></td>
+      <td><input type="checkbox" ${b.paid?'checked':''} onchange="update(${i},'paid',this.checked); if(this.checked&&!bills[${i}].paidDate)bills[${i}].paidDate=new Date().toISOString().slice(0,10); save(); render(); drawChart();"></td>
+      <td><input type="date" value="${b.paidDate||''}" onchange="update(${i},'paidDate',this.value)"></td>
+      <td contenteditable oninput="update(${i},'paidBy',this.innerText)">${b.paidBy||''}</td>
+      <td><input type="file" accept='.txt,.pdf,.doc,.docx' onchange="attachFile(${i},this.files[0])"></td>
       <td><button onclick="delRow(${i})">🗑️</button></td>
     `;
     tbody.appendChild(tr);
   });
 }
 
-function update(index, field, value) {
-  bills[index][field] = value;
-  save();
+function update(i,field,value){ bills[i][field]=value; save(); }
+function addRow(){
+  bills.push({q:'Q1', name:'New Bill', cat:'Other', amt:0, due:new Date().toISOString().slice(0,10), req:false, paid:false, paidDate:'', paidBy:'', attach:''});
+  save(); render(); drawChart();
 }
+function delRow(i){ if(confirm('Delete this bill?')){ bills.splice(i,1); save(); render(); drawChart(); } }
+function attachFile(i,file){ if(file){ bills[i].attach=file.name; save(); alert('Attached: '+file.name); } }
 
-function addRow() {
-  bills.push({q:'Q1', name:'New Bill', cat:'Other', amt:0, due:new Date().toISOString().slice(0,10), req:false, paid:false});
-  save();
-  render();
+function exportData(){
+  const blob=new Blob([JSON.stringify(bills,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='bills.json'; a.click();
 }
-
-function delRow(index) {
-  if (confirm('Delete this bill?')) {
-    bills.splice(index, 1);
-    save();
-    render();
-  }
+function exportText(){
+  let text='Quarter\tBill\tCategory\tAmount\tDue Date\tRequired\tPaid\tPaid Date\tPaid By\tAttachment\n';
+  bills.forEach(b=>{ text+=`${b.q}\t${b.name}\t${b.cat}\t${b.amt}\t${b.due}\t${b.req}\t${b.paid}\t${b.paidDate}\t${b.paidBy}\t${b.attach}\n`; });
+  const blob=new Blob([text],{type:'text/plain'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='bills.txt'; a.click();
 }
-
-function exportData() {
-  const blob = new Blob([JSON.stringify(bills, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'bills.json';
-  a.click();
+function exportWord(){
+  let html='<html><body><table border="1"><tr><th>Quarter</th><th>Bill</th><th>Category</th><th>Amount</th><th>Due Date</th><th>Required</th><th>Paid</th><th>Paid Date</th><th>Paid By</th><th>Attachment</th></tr>';
+  bills.forEach(b=>{ html+=`<tr><td>${b.q}</td><td>${b.name}</td><td>${b.cat}</td><td>${b.amt}</td><td>${b.due}</td><td>${b.req}</td><td>${b.paid}</td><td>${b.paidDate}</td><td>${b.paidBy}</td><td>${b.attach}</td></tr>`; });
+  html+='</table></body></html>';
+  const blob=new Blob([html],{type:'application/msword'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='bills.doc'; a.click();
 }
-
-function exportText() {
-  let text = 'Quarter\tBill\tCategory\tAmount\tDue Date\tRequired\tPaid\n';
-  bills.forEach(b => {
-    text += `${b.q}\t${b.name}\t${b.cat}\t${b.amt}\t${b.due}\t${b.req}\t${b.paid}\n`;
-  });
-  const blob = new Blob([text], {type:'text/plain'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'bills.txt';
-  a.click();
-}
-
-function exportWord() {
-  let html = '<html><body><table border="1" style="border-collapse:collapse;"><tr><th>Quarter</th><th>Bill</th><th>Category</th><th>Amount</th><th>Due Date</th><th>Required</th><th>Paid</th></tr>';
-  bills.forEach(b => {
-    html += `<tr><td>${b.q}</td><td>${b.name}</td><td>${b.cat}</td><td>${b.amt}</td><td>${b.due}</td><td>${b.req}</td><td>${b.paid}</td></tr>`;
-  });
-  html += '</table></body></html>';
-  const blob = new Blob([html], {type:'application/msword'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'bills.doc';
-  a.click();
-}
-
-function importData() {
-  const json = prompt('Paste JSON here:');
-  if (!json) return;
-  try {
-    const arr = JSON.parse(json);
-    if (Array.isArray(arr)) {
-      bills = arr;
-      save();
-      render();
-    } else {
-      alert('Invalid format');
-    }
-  } catch(e) {
-    alert('Invalid JSON');
-  }
-}
-
-render();
-</script>
-
-</body>
-</html>
+function importData(){
+  const json=prompt('Paste JSON here:');
